@@ -1,0 +1,64 @@
+#include "Network_Packet.h"
+
+
+
+
+
+Network_Packet::Network_Packet(char* filter) {
+	Network_Packet::filter = filter;
+	if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+		fprintf(stderr, "Error inpcap_findalldevs: %s\n", errbuf);
+	}
+	//输出各个网卡的描述
+	for (d = alldevs;d;d = d->next) {
+		i++;
+	}
+	//则表示没有得到网卡的描述
+	if (i == 0) {
+
+	}
+	int choice = 2;//本机是二号网卡有包
+	if (choice<1 || choice>i) {
+		pcap_freealldevs(alldevs);
+	}
+	//根据用户的输入，通过指针进行找寻到当前网卡
+	for (d = alldevs, i = 0;i < choice;i++, d = d->next);
+	/* d->name to hand to "pcap_open_live()" */
+	/*值65535应该足以捕获数据包中可用的所有数据*/
+	/*将该设备设置到混杂模式，用于监听*/
+	/*错误信息提示*/
+	handler = pcap_open_live(d->name, (int)65536, 1, 1000, errbuf);
+
+	//表示没有打开成功
+	if (handler == NULL) {
+		pcap_freealldevs(alldevs);
+	}
+	int res = pcap_datalink(handler);
+	//目前处理的链路层的协议是 以太网的协议
+	if (res != DLT_EN10MB) {
+		pcap_freealldevs(alldevs);
+	}
+	bpf_u_int32 netmask;
+	if (d->addresses != NULL) {
+		netmask = ((struct sockaddr_in*)(d->addresses->netmask))->sin_addr.S_un.S_addr;
+	}
+	else {
+		/* 如果这个接口没有地址那么我们假设他为C类地址 */
+		netmask = 0xffffff;
+	}
+	//Structure for "pcap_compile()", "pcap_setfilter()", etc..
+	struct bpf_program fcode;
+	int res_compile = pcap_compile(handler, &fcode, filter, 1, netmask);
+	if (res_compile < 0) {
+		pcap_freealldevs(alldevs);
+	}
+	if (pcap_setfilter(handler, &fcode) < 0) {
+		pcap_freealldevs(alldevs);
+	}
+	//网卡列表的相关信息已经使用完毕，可以释放该空间
+	pcap_freealldevs(alldevs);
+	//这里的回调函数 必须是全局或者是静态函数
+}
+
+
+
