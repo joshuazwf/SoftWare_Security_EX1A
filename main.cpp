@@ -5,7 +5,7 @@
 #include<QDebug>
 #include<QJsonObject>
 #include<QJsonDocument>
-
+#include<vector>
 
 #pragma execution_character_set("utf-8")
 
@@ -18,7 +18,7 @@ void Transmission_udp_handler(u_char* param, const struct pcap_pkthdr* header, c
 void HTTP_layer_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data);
 
 void data_link_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data) {
-    //»ñÈ¡µ±Ç°°üµÄÊ±¼ä
+    //è·å–å½“å‰åŒ…çš„æ—¶é—´
     struct tm ltime;
     char timestr[16];
     time_t local_tv_sec;
@@ -27,21 +27,59 @@ void data_link_handler(u_char* param, const struct pcap_pkthdr* header, const u_
     local_tv_sec = header->ts.tv_sec;
     localtime_s(&ltime, &local_tv_sec);
     strftime(timestr, sizeof timestr, "%H:%M:%S", &ltime);
-    //¶ÔÒÔÌ«ÍøµÄÖ¡½øĞĞ·ÖÎö
+    //å¯¹ä»¥å¤ªç½‘çš„å¸§è¿›è¡Œåˆ†æ
     u_short type;
     ethernet_header* E_header = (ethernet_header*)pkt_data;
+    QJsonObject ether;
+    QString first = QString("%1").arg(E_header->src_mac.first, 2, 16, QLatin1Char('0'));
+    QString second = QString("%1").arg(E_header->src_mac.second, 2, 16, QLatin1Char('0'));
+    QString third = QString("%1").arg(E_header->src_mac.third, 2, 16, QLatin1Char('0'));
+    QString four = QString("%1").arg(E_header->src_mac.four, 2, 16, QLatin1Char('0'));
+    QString five = QString("%1").arg(E_header->src_mac.five, 2, 16, QLatin1Char('0'));
+    QString six = QString("%1").arg(E_header->src_mac.six, 2, 16, QLatin1Char('0'));
+    QString first_1 = QString("%1").arg(E_header->dst_mac.first, 2, 16, QLatin1Char('0'));
+    QString second_1 = QString("%1").arg(E_header->dst_mac.second, 2, 16, QLatin1Char('0'));
+    QString third_1 = QString("%1").arg(E_header->dst_mac.third, 2, 16, QLatin1Char('0'));
+    QString four_1 = QString("%1").arg(E_header->dst_mac.four, 2, 16, QLatin1Char('0'));
+    QString five_1 = QString("%1").arg(E_header->dst_mac.five, 2, 16, QLatin1Char('0'));
+    QString six_1 = QString("%1").arg(E_header->dst_mac.six, 2, 16, QLatin1Char('0'));
+    QString src_mac = first + ":" + second + ":" +third+ ":" + four+ ":" +five+ ":" +six;
+    QString dst_mac = first_1 + ":" + second_1 + ":" + third_1 + ":" + four_1 + ":" + five_1 + ":" + six_1;
     type = ntohs(E_header->type);
-    qDebug("%x:%x:%x:%x:%x:%x", E_header->src_mac.first, E_header->src_mac.second, E_header->src_mac.third, E_header->src_mac.four, E_header->src_mac.five, E_header->src_mac.six);
-    qDebug("%x:%x:%x:%x:%x:%x", E_header->dst_mac.first, E_header->dst_mac.second, E_header->dst_mac.third, E_header->dst_mac.four, E_header->dst_mac.five, E_header->dst_mac.six);
-    qDebug("0x%0x",type);
+    QString T_type;
     if (type == 0x0800) {
-        qDebug() << "ipv4";
+        T_type = "ipv4(0x0800)";
+    }
+    if (type == 0x86DD) {
+        T_type = "ipv6(0x86DD)";
+    }
+    if (type == 0x0806) {
+        T_type = "arp(0x0806)";
+    }
+    ether.insert("pro_type", "Ethernet");
+    ether.insert("Src MAC", src_mac);
+    ether.insert("Dst MAC", dst_mac);
+    ether.insert("Type", T_type);
+    std::vector<QJsonObject> v;
+    v.push_back(ether);
+    if (type == 0x0800) {
         QJsonObject re=net4_layer_handler(param, header, pkt_data + 14);
-        QJsonDocument docu;
-        docu.setObject(re);
-        QByteArray byte = docu.toJson(QJsonDocument::Compact);
-        QString str(byte);
-        qDebug() << "test json:"<<str;
+        v.push_back(re);
+        for (int i = 0;i < v.size();i++) {
+          QJsonObject::const_iterator it = v[i].constBegin();
+          QJsonObject::const_iterator end = v[i].constEnd();
+          while (it != end) {
+              qDebug() << it.key()<<it.value();//value è·å–åˆ°çš„æ˜¯QJsonValue
+              it++;
+          }
+          /*
+          QJsonDocument docu;
+          docu.setObject(re);
+          QByteArray byte = docu.toJson(QJsonDocument::Compact);
+          QString str(byte);
+          qDebug() << "test json:"<<str;
+          */
+        }
     }
     else if (type == 0x86DD) {
         qDebug() << "ipv6";
@@ -52,14 +90,13 @@ void data_link_handler(u_char* param, const struct pcap_pkthdr* header, const u_
         arp_pck(param, header, pkt_data + 14);
     }
     else {
-        //ÔİÊ±²»¿¼ÂÇ
+        //æš‚æ—¶ä¸è€ƒè™‘
     }
 }
 
 QJsonObject net4_layer_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data) {
     IPV4_Header* ip4_header = (IPV4_Header*)pkt_data;
-    // ip4³¤¶È²»¶¨
-    //¿ÉÒÔ»ñµÃµ½ip±¨ÖĞµÄ¸÷ÏîÊı¾İ
+    // ip4é•¿åº¦ä¸å®š
     /** 1 ICMP * 2 IGMP* 6 TCP* 17 UDP*/
     QString src_ip = QString::number(ip4_header->src_ip.fisrt)+"."+ QString::number(ip4_header->src_ip.second)
         +"." + QString::number(ip4_header->src_ip.third) + "." + QString::number(ip4_header->src_ip.fourth);
@@ -71,12 +108,13 @@ QJsonObject net4_layer_handler(u_char* param, const struct pcap_pkthdr* header, 
     u_char tos = ntohs(ip4_header->type_of_service);
     u_short t_len = ntohs(ip4_header->total_len);
     u_short identifier = ntohs(ip4_header->identifier);
-    u_short flags = (ntohs(ip4_header->flags_fragment)) &0xe0000;//3Î»±êÖ¾
-    u_short fragment = (ntohs(ip4_header->flags_fragment))& 0x1fff;//13Î»Æ«ÒÆ
+    u_short flags = (ntohs(ip4_header->flags_fragment)) &0xe0000;//3ä½æ ‡å¿—
+    u_short fragment = (ntohs(ip4_header->flags_fragment))& 0x1fff;//13ä½åç§»
     u_char ttl=ip4_header->TTL;
     u_char protocol = (ip4_header->protocol);
     u_short check_sum = ntohs(ip4_header->header_sum);
     QJsonObject obj;
+    obj.insert("pro_type", "ipv4");
     obj.insert("Version", (int)version);
     obj.insert("Header Length", QString::number(ip_len)+" bytes");
     QString toss= QString("%1").arg(tos, 2, 16, QLatin1Char('0'));
@@ -84,8 +122,8 @@ QJsonObject net4_layer_handler(u_char* param, const struct pcap_pkthdr* header, 
     obj.insert("Total Length",t_len);
     QString iden = QString("%1").arg(identifier, 2, 16, QLatin1Char('0'));
     obj.insert("Identification","0x"+iden);
-    //flags×ª»»Îª¶ş½øÖÆÏÔÊ¾
-    QString b = QString("%1").arg(flags, 16, 2, QLatin1Char('0'));//×ªÎª2½øÖÆ  16Î»Ìî³ä
+    //flagsè½¬æ¢ä¸ºäºŒè¿›åˆ¶æ˜¾ç¤º
+    QString b = QString("%1").arg(flags, 16, 2, QLatin1Char('0'));//è½¬ä¸º2è¿›åˆ¶  16ä½å¡«å……
     QString flag = b.left(3);
     obj.insert("flags[ReservedBit,Don't Fragment,More Fragment]", flag);
     QString f= QString("%1").arg(fragment, 16, 2, QLatin1Char('0'));
@@ -104,36 +142,18 @@ QJsonObject net4_layer_handler(u_char* param, const struct pcap_pkthdr* header, 
     obj.insert("Check Sum", "0x"+sum);
     obj.insert("Src IP", src_ip);
     obj.insert("DST IP", dst_ip);
-
-
-    qDebug("%d.%d.%d.%d -> %d.%d.%d.%d\n",
-        ip4_header->src_ip.fisrt,
-        ip4_header->src_ip.second,
-        ip4_header->src_ip.third,
-        ip4_header->src_ip.fourth,
-        ip4_header->dst_ip.fisrt,
-        ip4_header->dst_ip.second,
-        ip4_header->dst_ip.third,
-        ip4_header ->dst_ip.fourth
-        );
-      
-    qDebug() << "pro=" << protocol;
     if (protocol == 6) {
-        qDebug() << "tcp";
         Transmission_tcp_handler(param, header, pkt_data + ip_len);
     }
     else if (protocol == 17) {
-        qDebug() << "udp";
         Transmission_udp_handler(param, header, pkt_data + ip_len);
     }
     else if (protocol == 1) {
-        qDebug() << "icmp";
         //icmp_handler(param, header, pkt_data + ip_len);
     }
     else {
-        //Ôİ²»¿¼ÂÇ
+        //æš‚ä¸è€ƒè™‘
     }
-
     return obj;
 }
 
@@ -180,12 +200,12 @@ void arp_pck(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_
         arp_h->src_mac.five, arp_h->src_mac.six);
     qDebug("%x:%x:%x:%x:%x:%x", arp_h->dst_mac.first, arp_h->dst_mac.second, arp_h->dst_mac.third, arp_h->dst_mac.four,
         arp_h->dst_mac.five, arp_h->dst_mac.six);
-    //µÃµ½ARPµÄ¸÷¸ö×Ö¶Î
+    //å¾—åˆ°ARPçš„å„ä¸ªå­—æ®µ
 }
 
 void Transmission_tcp_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data) {
     TCP_header* tcp_header = (TCP_header*)pkt_data;
-    //»ñµÃ¶Ë¿ÚºÅ
+    //è·å¾—ç«¯å£å·
     u_short dst_port = ntohs(tcp_header->dst_port);
     u_short src_port = ntohs(tcp_header->src_port);
     u_short head_len = (ntohs(tcp_header->len_keep_flag)) & 0xf0000;
@@ -197,11 +217,11 @@ void Transmission_tcp_handler(u_char* param, const struct pcap_pkthdr* header, c
 
     qDebug("winsize=%d", ntohs(tcp_header->win_size));
 
-    //HTTP Ó¦ÓÃ²ãĞ­Òé
+    //HTTP åº”ç”¨å±‚åè®®
     if (dst_port == 80 || src_port == 80) {
         //HTTP_layer_handler(param, header, pkt_data + head_len);
     }
-    //TLS/SSLĞ­Òé ¶Ë¿ÚÎª443
+    //TLS/SSLåè®® ç«¯å£ä¸º443
     if (dst_port == 443 || src_port == 443) {
 
     }
@@ -209,23 +229,23 @@ void Transmission_tcp_handler(u_char* param, const struct pcap_pkthdr* header, c
 
 void Transmission_udp_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data) {
     UDP_Header* udp_header = (UDP_Header*)pkt_data;
-    //Ö®ºó¿ÉÒÔ¼ÓÉÏDNSµÄ²Ù×÷  53¶Ë¿Ú
+    //ä¹‹åå¯ä»¥åŠ ä¸ŠDNSçš„æ“ä½œ  53ç«¯å£
     qDebug("dst_port=%d", ntohs(udp_header->dst_port));
     qDebug("len=%d", ntohs(udp_header->length));
 }
 
 void HTTP_layer_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data) {
-    //´Ópkt_data¿ªÊ¼¾ÍÊÇHTTPµÄÏà¹ØĞÅÏ¢ÁË Ö±½ÓÊä³ö¼´¿É
+    //ä»pkt_dataå¼€å§‹å°±æ˜¯HTTPçš„ç›¸å…³ä¿¡æ¯äº† ç›´æ¥è¾“å‡ºå³å¯
 }
 
 int main(int argc, char* argv[]){
-    //Ê×ÏÈÓÃ»§½øÈëµ½µÄÊÇÑ¡ÔñÍø¿¨µÄ½çÃæ
+    //é¦–å…ˆç”¨æˆ·è¿›å…¥åˆ°çš„æ˜¯é€‰æ‹©ç½‘å¡çš„ç•Œé¢
     // 
     // 
     /*
-    //Íø¿¨Ñ¡ÔñÖ®ºó£¬½çÃæÌø×ªµ½×¥°ü½çÃæ
+    //ç½‘å¡é€‰æ‹©ä¹‹åï¼Œç•Œé¢è·³è½¬åˆ°æŠ“åŒ…ç•Œé¢
     QApplication a(argc, argv);
-    //½çÃæÏÔÊ¾
+    //ç•Œé¢æ˜¾ç¤º
     QtWidgetsApplication1 w;
     QStringList strHeader;
     strHeader<< "Time"<< "Source"<< "DEST"<< "Protocol" << "Length"<< "info";
@@ -237,22 +257,18 @@ int main(int argc, char* argv[]){
 
     //char *filter = NULL;
     char filter[] = "ip";
-    //¹¹ÔìÁËÕâÒ»¶ÔÏóÖ®ºó£¬±ã»á¿ªÊ¼×¥°üÁË
+    //æ„é€ äº†è¿™ä¸€å¯¹è±¡ä¹‹åï¼Œä¾¿ä¼šå¼€å§‹æŠ“åŒ…äº†
     Network_Packet sniffer = Network_Packet(filter);
-
-    qDebug() << "test";
-
+    sniffer.getInterfaces();
+    if (sniffer.dev_num==4)
+        sniffer.choose_inter(2);
+    if (sniffer.dev_num == 5)
+        sniffer.choose_inter(3);
+   // qDebug() << "test";
+   // qDebug() << sniffer.dev_num << (sniffer.handler == NULL);
     pcap_loop(sniffer.handler,0,data_link_handler,NULL );
-
     delete(&sniffer);
-
-    /*
-    for (sniffer.d = sniffer.alldevs;sniffer.d;sniffer.d = sniffer.d->next) {
-        qDebug() << sniffer.d->description;
-    }
-    */
     return 0;
-    
     
 
     /*
@@ -270,13 +286,3 @@ int main(int argc, char* argv[]){
     }
 	return  a.exec();*/
 }
-
-
-
-
-
-
-
-
-
-
