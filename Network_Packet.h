@@ -1,29 +1,18 @@
 #pragma once
 #include "pcap.h"
 
-//¿ÉÒÔÊ¹ÓÃ¼ÆÊıÆ÷¶ÔÃ¿Ò»ÖÖÀàĞÍµÄ°ü½øĞĞÍ³¼Æ
+//å¯ä»¥ä½¿ç”¨è®¡æ•°å™¨å¯¹æ¯ä¸€ç§ç±»å‹çš„åŒ…è¿›è¡Œç»Ÿè®¡
 class Network_Packet
 {
 public:
 	pcap_t* handler;
-	pcap_if_t* alldevs, * d;
-	int i = 0;
-	char errbuf[PCAP_ERRBUF_SIZE];
+	pcap_if_t* alldevs;
+	int dev_num;
 	char *filter;
 	Network_Packet(char* filter);
-	/*
-	static void data_link_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data);
-	static void arp_pck(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data);
-	static void net4_layer_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data);
-	static void net6_layer_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data);
-	static void icmp_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data);
-	static void Transmission_tcp_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data);
-	static void Transmission_udp_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data);
-	static void HTTP_layer_handler(u_char* param, const struct pcap_pkthdr* header, const u_char* pkt_data);
-	*/
+	void getInterfaces();
+	void choose_inter(int choice);
 };
-
-
 
 class UDP_Header {
 public:
@@ -84,7 +73,7 @@ public:
 	u_short dst_port;
 	u_int seq;
 	u_int ack;
-	u_short len_keep_flag;//´æÔÚÊ×²¿³¤¶ÈµÄ×Ö¶Î
+	u_short len_keep_flag;//å­˜åœ¨é¦–éƒ¨é•¿åº¦çš„å­—æ®µ
 	u_short win_size;
 	u_short check_sum;
 	u_short urgency;
