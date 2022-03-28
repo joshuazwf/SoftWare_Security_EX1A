@@ -1,40 +1,46 @@
 #include "Network_Packet.h"
 
-
-
-
-
 Network_Packet::Network_Packet(char* filter) {
 	Network_Packet::filter = filter;
+	alldevs = nullptr;
+	handler = nullptr;
+	dev_num = 0;
+}
+
+void Network_Packet::getInterfaces() {
+	pcap_if_t* d;
+	char errbuf[PCAP_ERRBUF_SIZE];
 	if (pcap_findalldevs(&alldevs, errbuf) == -1) {
 		fprintf(stderr, "Error inpcap_findalldevs: %s\n", errbuf);
 	}
-	//Êä³ö¸÷¸öÍø¿¨µÄÃèÊö
+	//è¾“å‡ºå„ä¸ªç½‘å¡çš„æè¿°
 	for (d = alldevs;d;d = d->next) {
-		i++;
+		dev_num++;
 	}
-	//Ôò±íÊ¾Ã»ÓĞµÃµ½Íø¿¨µÄÃèÊö
-	if (i == 0) {
+}
 
-	}
-	int choice = 2;//±¾»úÊÇ¶şºÅÍø¿¨ÓĞ°ü
-	if (choice<1 || choice>i) {
+void Network_Packet::choose_inter(int choice) {
+	//choice = 2;//æœ¬æœºæ˜¯äºŒå·ç½‘å¡æœ‰åŒ…
+	if (choice<1 || choice>dev_num) {
 		pcap_freealldevs(alldevs);
 	}
-	//¸ù¾İÓÃ»§µÄÊäÈë£¬Í¨¹ıÖ¸Õë½øĞĞÕÒÑ°µ½µ±Ç°Íø¿¨
+	pcap_if_t* d=alldevs->next;
+	int i = 0;
+	//æ ¹æ®ç”¨æˆ·çš„è¾“å…¥ï¼Œé€šè¿‡æŒ‡é’ˆè¿›è¡Œæ‰¾å¯»åˆ°å½“å‰ç½‘å¡
+	//Realtek PCIe GbE Family Controller
 	for (d = alldevs, i = 0;i < choice;i++, d = d->next);
 	/* d->name to hand to "pcap_open_live()" */
-	/*Öµ65535Ó¦¸Ã×ãÒÔ²¶»ñÊı¾İ°üÖĞ¿ÉÓÃµÄËùÓĞÊı¾İ*/
-	/*½«¸ÃÉè±¸ÉèÖÃµ½»ìÔÓÄ£Ê½£¬ÓÃÓÚ¼àÌı*/
-	/*´íÎóĞÅÏ¢ÌáÊ¾*/
+	/*å€¼65535åº”è¯¥è¶³ä»¥æ•è·æ•°æ®åŒ…ä¸­å¯ç”¨çš„æ‰€æœ‰æ•°æ®*/
+	/*å°†è¯¥è®¾å¤‡è®¾ç½®åˆ°æ··æ‚æ¨¡å¼ï¼Œç”¨äºç›‘å¬*/
+	/*é”™è¯¯ä¿¡æ¯æç¤º*/
+	char errbuf[PCAP_ERRBUF_SIZE];
 	handler = pcap_open_live(d->name, (int)65536, 1, 1000, errbuf);
-
-	//±íÊ¾Ã»ÓĞ´ò¿ª³É¹¦
+	//è¡¨ç¤ºæ²¡æœ‰æ‰“å¼€æˆåŠŸ
 	if (handler == NULL) {
 		pcap_freealldevs(alldevs);
 	}
 	int res = pcap_datalink(handler);
-	//Ä¿Ç°´¦ÀíµÄÁ´Â·²ãµÄĞ­ÒéÊÇ ÒÔÌ«ÍøµÄĞ­Òé
+	//ç›®å‰å¤„ç†çš„é“¾è·¯å±‚çš„åè®®æ˜¯ ä»¥å¤ªç½‘çš„åè®®
 	if (res != DLT_EN10MB) {
 		pcap_freealldevs(alldevs);
 	}
@@ -43,7 +49,7 @@ Network_Packet::Network_Packet(char* filter) {
 		netmask = ((struct sockaddr_in*)(d->addresses->netmask))->sin_addr.S_un.S_addr;
 	}
 	else {
-		/* Èç¹ûÕâ¸ö½Ó¿ÚÃ»ÓĞµØÖ·ÄÇÃ´ÎÒÃÇ¼ÙÉèËûÎªCÀàµØÖ· */
+		/* å¦‚æœè¿™ä¸ªæ¥å£æ²¡æœ‰åœ°å€é‚£ä¹ˆæˆ‘ä»¬å‡è®¾ä»–ä¸ºCç±»åœ°å€ */
 		netmask = 0xffffff;
 	}
 	//Structure for "pcap_compile()", "pcap_setfilter()", etc..
@@ -55,9 +61,8 @@ Network_Packet::Network_Packet(char* filter) {
 	if (pcap_setfilter(handler, &fcode) < 0) {
 		pcap_freealldevs(alldevs);
 	}
-	//Íø¿¨ÁĞ±íµÄÏà¹ØĞÅÏ¢ÒÑ¾­Ê¹ÓÃÍê±Ï£¬¿ÉÒÔÊÍ·Å¸Ã¿Õ¼ä
+	//ç½‘å¡åˆ—è¡¨çš„ç›¸å…³ä¿¡æ¯å·²ç»ä½¿ç”¨å®Œæ¯•ï¼Œå¯ä»¥é‡Šæ”¾è¯¥ç©ºé—´
 	pcap_freealldevs(alldevs);
-	//ÕâÀïµÄ»Øµ÷º¯Êı ±ØĞëÊÇÈ«¾Ö»òÕßÊÇ¾²Ì¬º¯Êı
 }
 
 
